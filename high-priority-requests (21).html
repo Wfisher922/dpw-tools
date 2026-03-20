@@ -1,0 +1,762 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>High Priority Requests — Status Tool</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root {
+    --font: -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --radius-sm: 10px;
+    --radius: 16px;
+    --radius-lg: 22px;
+    --radius-xl: 28px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 3rem 1rem 6rem;
+    -webkit-font-smoothing: antialiased;
+    position: relative;
+    overflow-x: hidden;
+    background: #0a0a1a;
+  }
+
+  /* iOS 26 — deep aurora background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(ellipse 80% 60% at 20% 20%, rgba(100,160,255,0.28) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 80% at 80% 10%, rgba(60,200,120,0.22) 0%, transparent 55%),
+      radial-gradient(ellipse 90% 50% at 50% 90%, rgba(60,200,180,0.18) 0%, transparent 60%),
+      radial-gradient(ellipse 70% 70% at 10% 80%, rgba(80,120,255,0.15) 0%, transparent 55%),
+      linear-gradient(160deg, #0d1526 0%, #0a0a1a 40%, #0d0d20 100%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Animated orbs */
+  body::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background:
+      radial-gradient(circle 300px at 75% 25%, rgba(40,180,100,0.12) 0%, transparent 70%),
+      radial-gradient(circle 400px at 25% 70%, rgba(0,180,255,0.1) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+    animation: drift 18s ease-in-out infinite alternate;
+  }
+
+  @keyframes drift {
+    from { transform: translateY(0px) translateX(0px); }
+    to { transform: translateY(-30px) translateX(20px); }
+  }
+
+  .page-wrap {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 860px;
+  }
+
+  /* Header */
+  .app-header {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+    margin-bottom: 2rem;
+    padding: 0 6px;
+  }
+
+  .app-icon {
+    width: 56px; height: 56px;
+    background: linear-gradient(145deg, rgba(80,160,255,0.9), rgba(0,80,220,0.95));
+    border-radius: 14px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 4px 20px rgba(0,100,255,0.45), 0 0 0 0.5px rgba(255,255,255,0.2) inset;
+    margin-bottom: 1.25rem;
+    backdrop-filter: blur(10px);
+  }
+  .app-icon svg { width: 28px; height: 28px; fill: white; }
+
+  .app-eyebrow {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(130,180,255,0.9);
+    letter-spacing: 0.3px;
+    margin-bottom: 6px;
+  }
+
+  .app-title {
+    font-size: 46px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.95);
+    letter-spacing: -2px;
+    line-height: 1.0;
+    margin-bottom: 8px;
+  }
+
+  .app-subtitle {
+    font-size: 17px;
+    color: rgba(255,255,255,0.45);
+    font-weight: 400;
+    letter-spacing: -0.2px;
+  }
+
+  /* Glass card — iOS 26 liquid glass */
+  .card {
+    width: 100%;
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    animation: fadeUp 0.4s cubic-bezier(0.32,0.72,0,1) both;
+    background: rgba(255,255,255,0.07);
+    border: 0.5px solid rgba(255,255,255,0.18);
+    box-shadow:
+      0 0 0 0.5px rgba(255,255,255,0.06) inset,
+      0 8px 40px rgba(0,0,0,0.45),
+      0 2px 8px rgba(0,0,0,0.3);
+    backdrop-filter: blur(40px) saturate(180%);
+    -webkit-backdrop-filter: blur(40px) saturate(180%);
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px) scale(0.99); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  .card-section {
+    padding: 1.5rem 1.75rem;
+    border-bottom: 0.5px solid rgba(255,255,255,0.08);
+    position: relative;
+  }
+
+  .card-section:last-child { border-bottom: none; }
+
+  /* Specular highlight on top of card */
+  .card-section:first-child::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.25), transparent);
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.35);
+    text-transform: uppercase;
+    letter-spacing: 0.7px;
+    margin-bottom: 1rem;
+  }
+
+  /* Fields */
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .field-full { grid-column: 1 / -1; }
+
+  .field label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.4);
+    margin-bottom: 6px;
+  }
+
+  input[type="date"], input[type="time"], input[type="text"], select {
+    width: 100%;
+    padding: 11px 14px;
+    font-family: var(--font);
+    font-size: 15px;
+    color: rgba(255,255,255,0.92);
+    background: rgba(255,255,255,0.08);
+    border: 0.5px solid rgba(255,255,255,0.14);
+    border-radius: var(--radius-sm);
+    outline: none;
+    transition: all 0.18s;
+    -webkit-appearance: none;
+    appearance: none;
+    color-scheme: dark;
+    backdrop-filter: blur(10px);
+  }
+
+  input::placeholder { color: rgba(255,255,255,0.25); }
+
+  input:focus, select:focus {
+    border-color: rgba(100,160,255,0.6);
+    background: rgba(100,160,255,0.1);
+    box-shadow: 0 0 0 3px rgba(100,160,255,0.15);
+  }
+
+  select {
+    cursor: pointer;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='rgba(255,255,255,0.4)' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+    padding-right: 36px;
+  }
+
+  select option { background: #1a1a2e; color: white; }
+
+  /* Segmented control */
+  .segmented {
+    display: flex;
+    background: rgba(255,255,255,0.06);
+    border-radius: var(--radius-sm);
+    padding: 3px;
+    gap: 2px;
+    border: 0.5px solid rgba(255,255,255,0.1);
+  }
+
+  .seg-btn {
+    flex: 1;
+    padding: 8px 12px;
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.4);
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.32,0.72,0,1);
+    text-align: center;
+  }
+
+  .seg-btn.active {
+    background: rgba(255,255,255,0.14);
+    color: rgba(255,255,255,0.95);
+    font-weight: 600;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.3), 0 0 0 0.5px rgba(255,255,255,0.12) inset;
+  }
+
+  .seg-btn:hover:not(.active) { color: rgba(255,255,255,0.65); }
+
+  /* Panel */
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Upload zones */
+  .upload-options { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+
+  .upload-zone, .screenshot-zone {
+    border-radius: var(--radius);
+    padding: 1.5rem 1rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.18s;
+    backdrop-filter: blur(10px);
+  }
+
+  .upload-zone {
+    background: rgba(52,199,89,0.08);
+    border: 0.5px solid rgba(52,199,89,0.3);
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    background: rgba(52,199,89,0.15);
+    border-color: rgba(52,199,89,0.6);
+    box-shadow: 0 0 20px rgba(52,199,89,0.1);
+  }
+  .upload-zone .zone-title { font-size: 13px; font-weight: 600; color: rgba(52,210,100,0.95); margin-top: 7px; }
+
+  .screenshot-zone {
+    background: rgba(0,122,255,0.08);
+    border: 0.5px solid rgba(100,160,255,0.25);
+  }
+  .screenshot-zone:hover, .screenshot-zone.drag-over {
+    background: rgba(0,122,255,0.15);
+    border-color: rgba(100,160,255,0.55);
+    box-shadow: 0 0 20px rgba(0,122,255,0.12);
+  }
+  .screenshot-zone .zone-title { font-size: 13px; font-weight: 600; color: rgba(100,170,255,0.95); margin-top: 7px; }
+
+  .upload-zone .icon, .screenshot-zone .icon { font-size: 24px; }
+  .upload-zone .zone-sub, .screenshot-zone .zone-sub { font-size: 11px; color: rgba(255,255,255,0.3); margin-top: 4px; }
+
+  #fileInput, #imgInput { display: none; }
+
+  /* AI status */
+  .ai-status {
+    display: none;
+    background: rgba(0,122,255,0.1);
+    border: 0.5px solid rgba(100,160,255,0.25);
+    border-radius: var(--radius-sm);
+    padding: 0.9rem;
+    text-align: center;
+    margin-top: 10px;
+    font-size: 13px;
+    color: rgba(120,180,255,0.9);
+  }
+  .ai-status.active { display: block; }
+  .ai-spinner { display: inline-block; width: 13px; height: 13px; border: 2px solid rgba(100,160,255,0.2); border-top-color: rgba(100,160,255,0.8); border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 7px; vertical-align: middle; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Entry rows */
+  .entry-row { background: rgba(255,255,255,0.05); border: 0.5px solid rgba(255,255,255,0.1); border-radius: var(--radius-sm); padding: 1rem; margin-top: 10px; position: relative; }
+  .entry-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .entry-grid .field-full { grid-column: 1 / -1; }
+  .entry-label { font-size: 11px; color: rgba(255,255,255,0.35); font-weight: 500; margin-bottom: 5px; }
+  .entry-row input, .entry-row select { font-size: 13px; padding: 8px 10px; }
+  .entry-row select { padding-right: 32px; }
+  .remove-btn { position: absolute; top: 10px; right: 10px; background: rgba(255,59,48,0.15); border: none; color: rgba(255,100,90,0.9); font-size: 14px; width: 24px; height: 24px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+  .remove-btn:hover { background: rgba(255,59,48,0.25); }
+
+  /* Preview */
+  .preview-label {
+    font-size: 11px; font-weight: 600;
+    color: rgba(255,255,255,0.35);
+    text-transform: uppercase; letter-spacing: 0.7px;
+    margin-bottom: 10px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .preview-hint { font-size: 12px; color: rgba(100,170,255,0.8); font-weight: 500; text-transform: none; letter-spacing: 0; cursor: pointer; transition: color 0.15s; }
+  .preview-hint:hover { color: rgba(130,190,255,1); }
+
+  .preview {
+    background: rgba(255,255,255,0.05);
+    border: 0.5px solid rgba(255,255,255,0.1);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    font-size: 14px;
+    line-height: 1.7;
+    color: rgba(255,255,255,0.75);
+    min-height: 90px;
+    overflow-x: auto;
+    cursor: pointer;
+    transition: all 0.18s;
+  }
+  .preview:hover { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.07); }
+
+  .preview table { border-collapse: collapse; font-size: 13px; width: 100%; }
+  .preview .tbl-title td { background: rgba(30,60,120,0.8); color: rgba(255,255,255,0.95); font-weight: 600; padding: 10px 14px; font-size: 14px; }
+  .preview .tbl-sub td { background: rgba(40,90,40,0.8); color: rgba(200,240,200,0.9); font-size: 12px; padding: 5px 14px; font-weight: 500; }
+  .preview .tbl-head th { background: rgba(40,90,160,0.8); color: rgba(255,255,255,0.95); font-weight: 600; padding: 8px 14px; border: 0.5px solid rgba(80,130,200,0.4); text-align: left; font-size: 12px; }
+  .preview .tbl-even td { background: rgba(240,246,255,0.08); color: rgba(255,255,255,0.8); padding: 7px 14px; border: 0.5px solid rgba(255,255,255,0.07); font-size: 12px; }
+  .preview .tbl-odd td { background: rgba(255,255,255,0.03); color: rgba(255,255,255,0.8); padding: 7px 14px; border: 0.5px solid rgba(255,255,255,0.07); font-size: 12px; }
+  .preview p { margin-bottom: 0.6rem; }
+
+  /* Copy button — iOS 26 glass pill */
+  .copy-btn {
+    width: 100%;
+    padding: 15px 16px;
+    font-family: var(--font);
+    font-size: 16px;
+    font-weight: 600;
+    border-radius: var(--radius);
+    cursor: pointer;
+    border: 0.5px solid rgba(100,160,255,0.4);
+    background: rgba(0,100,255,0.5);
+    color: white;
+    letter-spacing: -0.2px;
+    transition: all 0.2s cubic-bezier(0.32,0.72,0,1);
+    backdrop-filter: blur(20px);
+    box-shadow:
+      0 0 0 0.5px rgba(255,255,255,0.15) inset,
+      0 4px 20px rgba(0,80,255,0.35),
+      0 1px 3px rgba(0,0,0,0.3);
+  }
+  .copy-btn:hover {
+    background: rgba(0,120,255,0.65);
+    box-shadow: 0 0 0 0.5px rgba(255,255,255,0.2) inset, 0 6px 28px rgba(0,100,255,0.5), 0 2px 6px rgba(0,0,0,0.3);
+    transform: translateY(-1px);
+  }
+  .copy-btn:active { transform: scale(0.98) translateY(0); }
+
+  .toast {
+    margin-top: 10px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(100,220,130,0.9);
+    height: 18px;
+    opacity: 0;
+    transition: opacity 0.25s;
+  }
+  .toast.show { opacity: 1; }
+
+  /* Modal — deep glass */
+  .modal-overlay {
+    display: none;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(20px) saturate(150%);
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+  }
+  .modal-overlay.open { display: flex; }
+
+  .modal-box {
+    background: rgba(20,22,40,0.85);
+    border: 0.5px solid rgba(255,255,255,0.15);
+    border-radius: var(--radius-xl);
+    padding: 2rem;
+    width: 100%;
+    max-width: 1020px;
+    max-height: 85vh;
+    overflow: auto;
+    position: relative;
+    box-shadow: 0 32px 100px rgba(0,0,0,0.6), 0 0 0 0.5px rgba(255,255,255,0.08) inset;
+    animation: fadeUp 0.22s cubic-bezier(0.32,0.72,0,1) both;
+    backdrop-filter: blur(40px);
+  }
+
+  .modal-close {
+    position: absolute; top: 1rem; right: 1rem;
+    background: rgba(255,255,255,0.08);
+    border: 0.5px solid rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.5);
+    font-size: 14px;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .modal-close:hover { background: rgba(255,255,255,0.14); color: rgba(255,255,255,0.9); }
+
+  .modal-box table { border-collapse: collapse; font-size: 14px; width: 100%; }
+  .modal-box .tbl-title td { background: #1F4E79; color: #fff; font-weight: 700; padding: 14px 18px; font-size: 17px; }
+  .modal-box .tbl-sub td { background: #375623; color: #e2efda; font-size: 13px; padding: 7px 18px; font-weight: 500; }
+  .modal-box .tbl-head th { background: #2E75B6; color: #fff; font-weight: 600; padding: 11px 16px; border: 1px solid #1a5c96; text-align: left; font-size: 13px; }
+  .modal-box .tbl-even td { background: rgba(240,246,255,0.06); color: rgba(255,255,255,0.85); padding: 10px 16px; border: 0.5px solid rgba(255,255,255,0.07); font-size: 14px; }
+  .modal-box .tbl-odd td { background: rgba(255,255,255,0.02); color: rgba(255,255,255,0.85); padding: 10px 16px; border: 0.5px solid rgba(255,255,255,0.07); font-size: 14px; }
+  .modal-box p { color: rgba(255,255,255,0.75); font-size: 15px; margin-bottom: 0.75rem; white-space: pre-wrap; }
+
+  .footer { margin-top: 2rem; font-size: 12px; color: rgba(255,255,255,0.2); text-align: center; }
+</style>
+</head>
+<body>
+
+<div class="page-wrap">
+
+  <div class="app-header">
+    <div class="app-icon">
+      <svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-5 14H4v-4h11v4zm0-5H4V9h11v4zm5 5h-4V9h4v9z"/></svg>
+    </div>
+    <div class="app-eyebrow">Department of Public Works</div>
+    <div class="app-title">Previous Evening /<br>Early Morning</div>
+    <div class="app-subtitle">High Priority Requests</div>
+  </div>
+
+  <div class="card">
+
+    <div class="card-section">
+      <div class="section-title">Report Details</div>
+      <div class="fields">
+        <div class="field">
+          <label>Date</label>
+          <input type="date" id="dateInput" />
+        </div>
+        <div class="field">
+          <label>Time</label>
+          <input type="time" id="timeInput" />
+        </div>
+        <div class="field field-full">
+          <label>Recipient name</label>
+          <input type="text" id="recipientInput" value="Steven" placeholder="e.g. Steven" />
+        </div>
+      </div>
+    </div>
+
+    <div class="card-section">
+      <div class="section-title">Report Type</div>
+      <div class="segmented">
+        <button class="seg-btn active" id="btnNone" onclick="setMode('none')">Nothing to report</button>
+        <button class="seg-btn" id="btnItems" onclick="setMode('items')">Add requests</button>
+      </div>
+    </div>
+
+    <div class="panel active" id="panelNone"></div>
+
+    <div class="panel" id="panelItems">
+      <div class="card-section">
+        <div class="section-title">Add requests via</div>
+        <div class="upload-options">
+          <div class="upload-zone" id="xlsxZone"
+            onclick="document.getElementById('fileInput').click()"
+            ondragover="handleDragOver(event,'xlsxZone')"
+            ondragleave="handleDragLeave('xlsxZone')"
+            ondrop="handleDrop(event,'xlsx')">
+            <div class="icon">📊</div>
+            <div class="zone-title">Excel file</div>
+            <div class="zone-sub">Click or drag & drop .xlsx</div>
+          </div>
+          <div class="screenshot-zone" id="imgZone"
+            onclick="document.getElementById('imgInput').click()"
+            ondragover="handleDragOver(event,'imgZone')"
+            ondragleave="handleDragLeave('imgZone')"
+            ondrop="handleDrop(event,'img')">
+            <div class="icon">🖼️</div>
+            <div class="zone-title">Screenshot</div>
+            <div class="zone-sub">AI reads it automatically</div>
+          </div>
+        </div>
+        <input type="file" id="fileInput" accept=".xlsx,.xls" onchange="handleXlsxFile(event)" />
+        <input type="file" id="imgInput" accept="image/*" onchange="handleImgFile(event)" />
+        <div class="ai-status" id="aiStatus">
+          <span class="ai-spinner"></span>
+          Reading screenshot with AI — just a moment...
+        </div>
+        <div id="entriesList"></div>
+      </div>
+    </div>
+
+    <div class="card-section">
+      <div class="preview-label">
+        <span>Preview</span>
+        <span class="preview-hint" onclick="openModal()">Expand ↗</span>
+      </div>
+      <div class="preview" id="preview" ondblclick="openModal()"></div>
+    </div>
+
+    <div class="card-section">
+      <button class="copy-btn" onclick="copyText()">Copy Email Text</button>
+      <div class="toast" id="toast">✓ Copied — go reply all in your inbox</div>
+    </div>
+
+  </div>
+
+  <p class="footer">Previous Evening / Early Morning — High Priority Requests</p>
+</div>
+
+<div class="modal-overlay" id="modalOverlay" onclick="closeModalOutside(event)">
+  <div class="modal-box" id="modalBox">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<script>
+const REQUESTORS = [
+  'Jason Winston - District 1','Kelsea Bond - District 2','Byron Amos - District 3',
+  'Jason Dozier - District 4','Liliana Bakhtiari - District 5','Alex Wan - District 6',
+  'Thomas Worthy - District 7','Mary Norwood - District 8','Dustin Hillis - District 9',
+  'Andrea L. Boone - District 10','Wayne Marin - District 11','Antonio Lewis - District 12'
+];
+const SERVICES = [
+  'Right of Way Maintenance Visibility/Overgrowth Issue','Damaged Garbage Cart Replacement',
+  'Damaged Recycling Cart Replacement','Solid Waste Education and Enforcement Team (SWEET) Investigation Request',
+  'Right of Way Maintenance (ROW) Litter Removal','Cart Pick Up','Missed Yard Trimmings',
+  'Missed Scheduled Bulk Collection','Missed Trash Backyard Service','Missing Garbage Cart',
+  'Entire Street Missed - Yard Trimmings','Missed Recycling','Missing Recycling Cart',
+  'Missed Residential Garbage','Dead Animal Removal','Blocked Driveway','Bulk Collection',
+  'Bulk Collection Request','Bulk Dumping Pick Up','Bulk Pickup Citation','Bulky Trimmings Request',
+  'Confirmed Missed Bulk Collection - DPW Only','DPW SWEET Re-Inspection','Dumpster Violations',
+  'Dumpster Violations - SWEET Inspection','Entire Street Missed - Garbage',
+  'Entire Street Missed - Recycling','Garbage or Recycling Cart Not Properly Placed Back at Curb After Collection',
+  'Grass Cutting','Grass Cutting Out of Quadrant','High Priority Illegal Dumping',
+  'High Priority Illegal Dumping Special Ops Team','High Priority Illegal Dumping Special Ops Team - DPW Back Office Only',
+  'Illegal Dumping','Illegal Dumping Investigation Request','Illegal Dumping Out of Quadrant - SWEET Internal Only',
+  'Marta Stop or City of Atlanta Community Garbage Bin That Needs to be Serviced',
+  'Missed Bulk Collection','Missed Bulk Pickup','Missed Garbage and Recycling',
+  'Missed Recycling Backyard Service','Missed Residential Garbage/Recycling',
+  'Multi-Family Dumpster Collections','New/Cancel Trash and Recycling Service',
+  'Operation Clean Sweep','Public Space Waste Receptacles','Public Space Waste Receptacles - Emptied',
+  'Public Works Vehicle Leaking Hydraulic Fluid on the Street','ROW Covering Stop Sign',
+  'Remove Obstruction in the Right of Way (ROW)','Residential Street Sweeping Out of Quadrant',
+  'Residential Street Sweeping in Quadrant','SWEET Investigation for Scheduled Bulk Collection (Internal Only)',
+  'Street Sweeping'
+];
+
+let mode = 'none', entries = [], entryId = 0, xlsxMode = false;
+
+function setMode(m) {
+  mode = m;
+  document.getElementById('btnNone').classList.toggle('active', m==='none');
+  document.getElementById('btnItems').classList.toggle('active', m==='items');
+  document.getElementById('panelNone').classList.toggle('active', m==='none');
+  document.getElementById('panelItems').classList.toggle('active', m==='items');
+  update();
+}
+
+function handleDragOver(e,z){e.preventDefault();document.getElementById(z).classList.add('drag-over');}
+function handleDragLeave(z){document.getElementById(z).classList.remove('drag-over');}
+function handleDrop(e,type){e.preventDefault();document.getElementById(type==='xlsx'?'xlsxZone':'imgZone').classList.remove('drag-over');const f=e.dataTransfer.files[0];if(!f)return;type==='xlsx'?processXlsx(f):processImage(f);}
+function handleXlsxFile(e){const f=e.target.files[0];if(f)processXlsx(f);e.target.value='';}
+function handleImgFile(e){const f=e.target.files[0];if(f)processImage(f);e.target.value='';}
+
+function processXlsx(file) {
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    const wb = XLSX.read(evt.target.result,{type:'binary'});
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+    let hi = -1;
+    for(let i=0;i<rows.length;i++){if(rows[i].some(c=>String(c).trim().toUpperCase()==='REQUESTOR')){hi=i;break;}}
+    if(hi===-1){alert('Could not find the header row.');return;}
+    const headers=rows[hi].map(h=>String(h).trim().toUpperCase());
+    const col=n=>headers.indexOf(n);
+    document.getElementById('entriesList').innerHTML='';
+    entries=[];entryId=0;xlsxMode=true;
+    for(let i=hi+1;i<rows.length;i++){const r=rows[i];if(!r.some(c=>c!==''))continue;
+      addEntry({requestor:r[col('REQUESTOR')]||'',received:r[col('DPW RECEIVED')]||'',location:r[col('LOCATION')]||'',service:r[col('SERVICE REQUEST')]||'',caseNum:r[col('CASE NUMBER')]?String(r[col('CASE NUMBER')]).trim():'',action:r[col('ACTION')]||''},true);}
+    update();
+  };
+  reader.readAsBinaryString(file);
+}
+
+async function processImage(file) {
+  const statusEl=document.getElementById('aiStatus');
+  statusEl.classList.add('active');
+  const base64=await new Promise(res=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.readAsDataURL(file);});
+  const mediaType=file.type||'image/png';
+  const prompt=`Read this screenshot of a high-priority request log. Extract all request entries. Return ONLY a JSON array with keys: requestor, received, location, service, caseNum, action. No explanation, no markdown.`;
+  try {
+    const response=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,messages:[{role:'user',content:[{type:'image',source:{type:'base64',media_type:mediaType,data:base64}},{type:'text',text:prompt}]}]})});
+    const data=await response.json();
+    const raw=data.content.map(b=>b.text||'').join('').trim();
+    const parsed=JSON.parse(raw.replace(/```json|```/g,'').trim());
+    if(Array.isArray(parsed)&&parsed.length>0){xlsxMode=false;parsed.forEach(e=>addEntry(e));}
+    else{alert('No entries found in screenshot.');}
+  } catch(err){alert('Could not read the screenshot.');}
+  finally{statusEl.classList.remove('active');}
+}
+
+function addEntry(data,keepXlsxMode) {
+  if(!keepXlsxMode)xlsxMode=false;
+  const id=entryId++;const d=data||{};entries.push(id);
+  const div=document.createElement('div');div.className='entry-row';div.id='entry-'+id;
+  div.innerHTML=`<button class="remove-btn" onclick="removeEntry(${id})">✕</button>
+    <div class="entry-grid">
+      <div class="field-full"><div class="entry-label">Requestor</div>
+        <select id="req-${id}" onchange="update()"><option value="${d.requestor||''}">${d.requestor||'Select requestor...'}</option>${REQUESTORS.filter(r=>r!==d.requestor).map(r=>`<option value="${r}">${r}</option>`).join('')}</select></div>
+      <div><div class="entry-label">DPW Received</div><input type="text" id="recv-${id}" placeholder="e.g. 3/18/2026 6:07PM" value="${d.received||''}" oninput="update()"/></div>
+      <div><div class="entry-label">Case Number</div><input type="text" id="case-${id}" placeholder="e.g. CS11134725" value="${d.caseNum||''}" oninput="update()"/></div>
+      <div class="field-full"><div class="entry-label">Location</div><input type="text" id="loc-${id}" placeholder="Address or intersection" value="${d.location||''}" oninput="update()"/></div>
+      <div class="field-full"><div class="entry-label">Service Request</div>
+        <select id="svc-${id}" onchange="update()"><option value="${d.service||''}">${d.service||'Select service...'}</option>${SERVICES.filter(s=>s!==d.service).map(s=>`<option value="${s}">${s}</option>`).join('')}</select></div>
+      <div class="field-full"><div class="entry-label">Action Taken</div><input type="text" id="action-${id}" placeholder="What was done?" value="${d.action||''}" oninput="update()"/></div>
+    </div>`;
+  document.getElementById('entriesList').appendChild(div);update();
+}
+
+function removeEntry(id){entries=entries.filter(e=>e!==id);const el=document.getElementById('entry-'+id);if(el)el.remove();update();}
+function getEntryData(id){return{requestor:document.getElementById('req-'+id)?.value||'',received:document.getElementById('recv-'+id)?.value||'',caseNum:document.getElementById('case-'+id)?.value||'',location:document.getElementById('loc-'+id)?.value||'',service:document.getElementById('svc-'+id)?.value||'',action:document.getElementById('action-'+id)?.value||''};}
+function getFormattedTime(v){if(!v)return'___';let[h,min]=v.split(':').map(Number);const ap=h>=12?'PM':'AM';h=h%12||12;return h+':'+String(min).padStart(2,'0')+' '+ap;}
+function getShortDate(v){if(!v)return'___';const[y,m,d]=v.split('-');return`${parseInt(m)}/${parseInt(d)}/${y}`;}
+
+function buildEmailText() {
+  const t=getFormattedTime(document.getElementById('timeInput').value);
+  const d=getShortDate(document.getElementById('dateInput').value);
+  const name=document.getElementById('recipientInput').value.trim()||'___';
+  if(mode==='none')return`Hello ${name},\n\nAs of ${t} on ${d}, there are no new high-priority requests from the past evening or early morning to report.`;
+  const filled=entries.map(getEntryData).filter(e=>e.requestor||e.service||e.location);
+  if(filled.length===0)return`Hello ${name},\n\nAs of ${t} on ${d}, please see the high-priority requests from the previous evening/early morning below:\n\n[No entries added yet]`;
+  const cols=['REQUESTOR','DPW RECEIVED','LOCATION','SERVICE REQUEST','CASE NUMBER','ACTION'];
+  const keys=['requestor','received','location','service','caseNum','action'];
+  const widths=cols.map((c,i)=>Math.max(c.length,...filled.map(e=>(e[keys[i]]||'').length)));
+  const pad=(s,w)=>String(s||'').padEnd(w);
+  const sep=widths.map(w=>'-'.repeat(w)).join('-+-');
+  const header=cols.map((c,i)=>pad(c,widths[i])).join(' | ');
+  const dataRows=filled.map(e=>keys.map((k,i)=>pad(e[k],widths[i])).join(' | ')).join('\n');
+  return`Hello ${name},\n\nPlease see the below high-priority requests from the previous evening/early morning as of ${t} on ${d}:\n\n${header}\n${sep}\n${dataRows}`;
+}
+
+function buildEmailHtml() {
+  const t=getFormattedTime(document.getElementById('timeInput').value);
+  const d=getShortDate(document.getElementById('dateInput').value);
+  const name=document.getElementById('recipientInput').value.trim()||'___';
+  const F="-apple-system,'Helvetica Neue',Helvetica,Arial,sans-serif";
+  if(mode==='none')return`<p style="font-family:${F};font-size:15px;">Hello ${name},</p><p style="font-family:${F};font-size:15px;">As of ${t} on ${d}, there are no new high-priority requests from the past evening or early morning to report.</p>`;
+  const filled=entries.map(getEntryData).filter(e=>e.requestor||e.service||e.location);
+  if(filled.length===0)return`<p style="font-family:${F};">Hello ${name},</p><p>[No entries added yet]</p>`;
+  const cols=['REQUESTOR','DPW RECEIVED','LOCATION','SERVICE REQUEST','CASE NUMBER','ACTION'];
+  const keys=['requestor','received','location','service','caseNum','action'];
+  const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const titleStyle=`background:#1F4E79;color:#fff;font-family:${F};font-size:22px;font-weight:bold;padding:16px 20px;letter-spacing:0.3px;`;
+  const subStyle=`background:#375623;color:#e2efda;font-family:${F};font-size:15px;font-weight:500;padding:9px 20px;`;
+  const thStyle=`background:#2E75B6;color:#fff;font-family:${F};font-size:16px;font-weight:bold;padding:13px 18px;border:1px solid #1a5c96;text-align:left;`;
+  const tdEven=`background:#F2F7FB;color:#1a1a1a;font-family:${F};font-size:15px;padding:12px 18px;border:1px solid #d0e4f0;vertical-align:top;`;
+  const tdOdd=`background:#fff;color:#1a1a1a;font-family:${F};font-size:15px;padding:12px 18px;border:1px solid #d0e4f0;vertical-align:top;`;
+  const today=new Date();
+  const dateStr=today.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const headerCells=cols.map(c=>`<th style="${thStyle}">${c}</th>`).join('');
+  const dataRows=filled.map((e,i)=>`<tr>${keys.map(k=>`<td style="${i%2===0?tdEven:tdOdd}">${esc(e[k])}</td>`).join('')}</tr>`).join('');
+  return`<p style="font-family:${F};font-size:15px;">Hello ${name},</p>
+<p style="font-family:${F};font-size:15px;">Please see the below high-priority requests from the previous evening/early morning as of ${t} on ${d}:</p>
+<table style="border-collapse:collapse;font-family:${F};margin-top:10px;width:100%;max-width:900px;">
+  <thead>
+    <tr><td colspan="${cols.length}" style="${titleStyle}">PREVIOUS EVENING — HIGH PRIORITY REQUESTS</td></tr>
+    <tr><td colspan="${cols.length}" style="${subStyle}">Department of Public Works &nbsp;|&nbsp; ${dateStr}</td></tr>
+    <tr>${headerCells}</tr>
+  </thead>
+  <tbody>${dataRows}</tbody>
+</table>`;
+}
+
+function buildPreviewHtml() {
+  const t=getFormattedTime(document.getElementById('timeInput').value);
+  const d=getShortDate(document.getElementById('dateInput').value);
+  const name=document.getElementById('recipientInput').value.trim()||'___';
+  if(mode==='none')return`<p>Hello ${name},</p><p>As of ${t} on ${d}, there are no new high-priority requests from the past evening or early morning to report.</p>`;
+  const filled=entries.map(getEntryData).filter(e=>e.requestor||e.service||e.location);
+  if(filled.length===0)return`<p>Hello ${name},</p><p style="color:rgba(255,255,255,0.3)">[No entries added yet]</p>`;
+  const cols=['REQUESTOR','DPW RECEIVED','LOCATION','SERVICE REQUEST','CASE NUMBER','ACTION'];
+  const keys=['requestor','received','location','service','caseNum','action'];
+  const esc=s=>String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  const today=new Date();
+  const dateStr=today.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+  const headerCells=cols.map(c=>`<th>${c}</th>`).join('');
+  const dataRows=filled.map((e,i)=>`<tr class="${i%2===0?'tbl-even':'tbl-odd'}">${keys.map(k=>`<td>${esc(e[k])}</td>`).join('')}</tr>`).join('');
+  return`<p>Hello ${name},</p><p>Please see the below high-priority requests from the previous evening/early morning as of ${t} on ${d}:</p>
+<table><tr class="tbl-title"><td colspan="${cols.length}">PREVIOUS EVENING — HIGH PRIORITY REQUESTS</td></tr>
+<tr class="tbl-sub"><td colspan="${cols.length}">Department of Public Works &nbsp;|&nbsp; ${dateStr}</td></tr>
+<tr class="tbl-head">${headerCells}</tr>${dataRows}</table>`;
+}
+
+function update() {
+  const preview=document.getElementById('preview');
+  if(mode==='items'&&xlsxMode){preview.innerHTML=buildPreviewHtml();}
+  else{preview.innerHTML='';preview.textContent=buildEmailText();}
+}
+
+['dateInput','timeInput','recipientInput'].forEach(id=>{document.getElementById(id).addEventListener('input',update);});
+
+function openModal() {
+  const content=document.getElementById('modalContent');
+  if(mode==='items'&&xlsxMode){content.innerHTML=buildPreviewHtml();}
+  else{content.innerHTML='';const pre=document.createElement('pre');pre.style.cssText='color:rgba(255,255,255,0.75);font-family:-apple-system,"Helvetica Neue",Helvetica,Arial,sans-serif;font-size:15px;line-height:1.8;white-space:pre-wrap;';pre.textContent=buildEmailText();content.appendChild(pre);}
+  document.getElementById('modalOverlay').classList.add('open');
+}
+
+function closeModal(){document.getElementById('modalOverlay').classList.remove('open');}
+function closeModalOutside(e){if(e.target===document.getElementById('modalOverlay'))closeModal();}
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
+
+function setNow() {
+  const now=new Date();
+  const y=now.getFullYear(),m=String(now.getMonth()+1).padStart(2,'0'),d=String(now.getDate()).padStart(2,'0');
+  document.getElementById('dateInput').value=`${y}-${m}-${d}`;
+  document.getElementById('timeInput').value=String(now.getHours()).padStart(2,'0')+':'+String(now.getMinutes()).padStart(2,'0');
+  update();
+}
+
+function copyText() {
+  const toast=document.getElementById('toast');
+  if(mode==='items'&&xlsxMode){
+    const html=buildEmailHtml(),plain=buildEmailText();
+    try{const item=new ClipboardItem({'text/html':new Blob([html],{type:'text/html'}),'text/plain':new Blob([plain],{type:'text/plain'})});navigator.clipboard.write([item]).then(()=>{toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),3000);});}
+    catch(e){navigator.clipboard.writeText(plain).then(()=>{toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),3000);});}
+  } else {
+    navigator.clipboard.writeText(buildEmailText()).then(()=>{toast.classList.add('show');setTimeout(()=>toast.classList.remove('show'),3000);});
+  }
+}
+
+setNow();
+</script>
+</body>
+</html>

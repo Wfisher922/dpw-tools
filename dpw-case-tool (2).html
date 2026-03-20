@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPW Customer Engagement Tool</title>
+<style>
+:root {
+  --font: -apple-system, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  --radius-sm: 10px; --radius: 16px; --radius-lg: 22px; --radius-xl: 28px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--font);
+  min-height: 100vh;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 3rem 1rem 6rem;
+  -webkit-font-smoothing: antialiased;
+  background: #0a0a1a; overflow-x: hidden; position: relative;
+}
+body::before {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background:
+    radial-gradient(ellipse 80% 60% at 20% 20%, rgba(100,160,255,0.28) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 80% at 80% 10%, rgba(60,200,120,0.22) 0%, transparent 55%),
+    radial-gradient(ellipse 90% 50% at 50% 90%, rgba(60,200,180,0.18) 0%, transparent 60%),
+    radial-gradient(ellipse 70% 70% at 10% 80%, rgba(80,120,255,0.15) 0%, transparent 55%),
+    linear-gradient(160deg, #0d1526 0%, #0a0a1a 40%, #0d0d20 100%);
+}
+body::after {
+  content: ''; position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background: radial-gradient(circle 300px at 75% 25%, rgba(40,180,100,0.12) 0%, transparent 70%),
+    radial-gradient(circle 400px at 25% 70%, rgba(0,180,255,0.1) 0%, transparent 70%);
+  animation: drift 18s ease-in-out infinite alternate;
+}
+@keyframes drift { from{transform:translateY(0) translateX(0)} to{transform:translateY(-30px) translateX(20px)} }
+.page-wrap { position: relative; z-index: 1; width: 100%; max-width: 900px; }
+.app-header { display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 2rem; padding: 0 6px; }
+.app-icon { width: 56px; height: 56px; background: linear-gradient(145deg, rgba(80,160,255,0.9), rgba(0,80,220,0.95)); border-radius: 14px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 20px rgba(0,100,255,0.45), 0 0 0 0.5px rgba(255,255,255,0.2) inset; margin-bottom: 1.25rem; }
+.app-icon svg { width: 28px; height: 28px; fill: white; }
+.app-eyebrow { font-size: 13px; font-weight: 500; color: rgba(130,180,255,0.9); margin-bottom: 6px; }
+.app-title { font-size: 42px; font-weight: 700; color: rgba(255,255,255,0.95); letter-spacing: -2px; line-height: 1.0; margin-bottom: 8px; }
+.app-subtitle { font-size: 17px; color: rgba(255,255,255,0.45); font-weight: 400; }
+
+/* Top tab bar */
+.tab-bar { display: flex; gap: 6px; margin-bottom: 1.5rem; background: rgba(255,255,255,0.06); border: 0.5px solid rgba(255,255,255,0.1); border-radius: var(--radius); padding: 4px; }
+.tab-btn { flex: 1; padding: 10px 12px; font-family: var(--font); font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.4); background: transparent; border: none; border-radius: var(--radius-sm); cursor: pointer; transition: all 0.2s; text-align: center; }
+.tab-btn.active { background: rgba(255,255,255,0.14); color: rgba(255,255,255,0.95); font-weight: 600; box-shadow: 0 1px 4px rgba(0,0,0,0.3), 0 0 0 0.5px rgba(255,255,255,0.12) inset; }
+.tab-btn:hover:not(.active) { color: rgba(255,255,255,0.65); }
+.tab-panel { display: none; } .tab-panel.active { display: block; }
+
+/* Glass card */
+.card { width: 100%; border-radius: var(--radius-xl); overflow: hidden; background: rgba(255,255,255,0.07); border: 0.5px solid rgba(255,255,255,0.18); box-shadow: 0 0 0 0.5px rgba(255,255,255,0.06) inset, 0 8px 40px rgba(0,0,0,0.45), 0 2px 8px rgba(0,0,0,0.3); backdrop-filter: blur(40px) saturate(180%); -webkit-backdrop-filter: blur(40px) saturate(180%); animation: fadeUp 0.4s cubic-bezier(0.32,0.72,0,1) both; margin-bottom: 1rem; }
+@keyframes fadeUp { from{opacity:0;transform:translateY(16px) scale(0.99)} to{opacity:1;transform:translateY(0) scale(1)} }
+.card-section { padding: 1.5rem 1.75rem; border-bottom: 0.5px solid rgba(255,255,255,0.08); position: relative; }
+.card-section:last-child { border-bottom: none; }
+.section-title { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 1rem; }
+
+/* Segmented */
+.segmented { display: flex; background: rgba(255,255,255,0.06); border-radius: var(--radius-sm); padding: 3px; gap: 2px; border: 0.5px solid rgba(255,255,255,0.1); }
+.seg-btn { flex: 1; padding: 8px 10px; font-family: var(--font); font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.4); background: transparent; border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s; text-align: center; }
+.seg-btn.active { background: rgba(255,255,255,0.14); color: rgba(255,255,255,0.95); font-weight: 600; box-shadow: 0 1px 4px rgba(0,0,0,0.3), 0 0 0 0.5px rgba(255,255,255,0.12) inset; }
+.seg-btn:hover:not(.active) { color: rgba(255,255,255,0.65); }
+
+/* Fields */
+.fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.field-full { grid-column: 1 / -1; }
+.field label { display: block; font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.4); margin-bottom: 6px; }
+input[type="text"], input[type="email"], select, textarea {
+  width: 100%; padding: 11px 14px; font-family: var(--font); font-size: 15px;
+  color: rgba(255,255,255,0.92); background: rgba(255,255,255,0.08);
+  border: 0.5px solid rgba(255,255,255,0.14); border-radius: var(--radius-sm);
+  outline: none; transition: all 0.18s; -webkit-appearance: none; appearance: none; color-scheme: dark; backdrop-filter: blur(10px);
+}
+input::placeholder, textarea::placeholder { color: rgba(255,255,255,0.25); }
+input:focus, select:focus, textarea:focus { border-color: rgba(100,160,255,0.6); background: rgba(100,160,255,0.1); box-shadow: 0 0 0 3px rgba(100,160,255,0.15); }
+select { cursor: pointer; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='rgba(255,255,255,0.4)' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px; }
+select option { background: #1a1a2e; color: white; }
+textarea { resize: vertical; min-height: 80px; line-height: 1.5; }
+
+/* Recipients display */
+.recipients-box { background: rgba(100,160,255,0.08); border: 0.5px solid rgba(100,160,255,0.25); border-radius: var(--radius-sm); padding: 10px 14px; margin-top: 8px; }
+.recipients-label { font-size: 11px; color: rgba(130,180,255,0.7); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+.recipients-list { font-size: 13px; color: rgba(180,210,255,0.9); line-height: 1.6; }
+.supervisor-list { font-size: 12px; color: rgba(150,190,255,0.65); margin-top: 4px; }
+
+/* Output boxes */
+.output-box { background: rgba(255,255,255,0.05); border: 0.5px solid rgba(255,255,255,0.1); border-radius: var(--radius); padding: 1.25rem; font-size: 13.5px; line-height: 1.7; color: rgba(255,255,255,0.75); min-height: 80px; white-space: pre-wrap; cursor: pointer; transition: all 0.18s; margin-bottom: 8px; }
+.output-box:hover { border-color: rgba(255,255,255,0.2); background: rgba(255,255,255,0.07); }
+.output-label { font-size: 11px; font-weight: 600; color: rgba(255,255,255,0.35); text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 8px; display: flex; align-items: center; justify-content: space-between; }
+.copy-small { font-size: 11px; color: rgba(100,170,255,0.8); font-weight: 500; text-transform: none; letter-spacing: 0; cursor: pointer; padding: 3px 10px; background: rgba(100,160,255,0.12); border-radius: 20px; border: 0.5px solid rgba(100,160,255,0.2); transition: all 0.15s; }
+.copy-small:hover { background: rgba(100,160,255,0.22); color: rgba(140,200,255,1); }
+.subject-line { font-size: 13px; color: rgba(255,220,100,0.85); font-weight: 600; margin-bottom: 4px; padding: 6px 10px; background: rgba(255,200,0,0.08); border-radius: 6px; border: 0.5px solid rgba(255,200,0,0.15); }
+
+/* Generate button */
+.gen-btn { width: 100%; padding: 15px 16px; font-family: var(--font); font-size: 16px; font-weight: 600; border-radius: var(--radius); cursor: pointer; border: 0.5px solid rgba(100,160,255,0.4); background: rgba(0,100,255,0.5); color: white; letter-spacing: -0.2px; transition: all 0.2s cubic-bezier(0.32,0.72,0,1); backdrop-filter: blur(20px); box-shadow: 0 0 0 0.5px rgba(255,255,255,0.15) inset, 0 4px 20px rgba(0,80,255,0.35), 0 1px 3px rgba(0,0,0,0.3); }
+.gen-btn:hover { background: rgba(0,120,255,0.65); transform: translateY(-1px); box-shadow: 0 0 0 0.5px rgba(255,255,255,0.2) inset, 0 6px 28px rgba(0,100,255,0.5); }
+.gen-btn:active { transform: scale(0.98); }
+.gen-btn.loading { opacity: 0.7; cursor: not-allowed; }
+
+/* Spinner */
+.spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.2); border-top-color: white; border-radius: 50%; animation: spin 0.8s linear infinite; margin-right: 8px; vertical-align: middle; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.toast { margin-top: 8px; text-align: center; font-size: 13px; font-weight: 500; color: rgba(100,220,130,0.9); height: 18px; opacity: 0; transition: opacity 0.25s; }
+.toast.show { opacity: 1; }
+.footer { margin-top: 2rem; font-size: 12px; color: rgba(255,255,255,0.2); text-align: center; }
+.divider { height: 0.5px; background: rgba(255,255,255,0.08); margin: 0; }
+</style>
+</head>
+<body>
+<div class="page-wrap">
+
+  <div class="app-header">
+    <div class="app-icon">
+      <svg viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-2 12H6v-2h12v2zm0-3H6V9h12v2zm0-3H6V6h12v2z"/></svg>
+    </div>
+    <div class="app-eyebrow">Department of Public Works</div>
+    <div class="app-title">Customer Engagement<br>Case Tool</div>
+    <div class="app-subtitle">Cases · Mailbox · Requests</div>
+  </div>
+
+  <!-- Tab Bar -->
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('part1')">📋 Cases</button>
+    <button class="tab-btn" onclick="switchTab('part2')">📬 Mailbox & Requests</button>
+  </div>
+
+  <!-- ===== PART 1: CASES ===== -->
+  <div class="tab-panel active" id="tab-part1">
+    <div class="card">
+
+      <!-- Case type toggle -->
+      <div class="card-section">
+        <div class="section-title">Case Type</div>
+        <div class="segmented">
+          <button class="seg-btn active" id="ct-complaint" onclick="setCaseType('COMPLAINT')">Complaint</button>
+          <button class="seg-btn" id="ct-escalation" onclick="setCaseType('ESCALATION')">Escalation</button>
+          <button class="seg-btn" id="ct-premature" onclick="setCaseType('PREMATURE CLOSURE')">Premature Closure</button>
+        </div>
+      </div>
+
+      <!-- Customer info -->
+      <div class="card-section">
+        <div class="section-title">Customer Information</div>
+        <div class="fields">
+          <div class="field"><label>Customer Name</label><input type="text" id="p1-custName" placeholder="e.g. Jane Smith" oninput="clearP1Output()" /></div>
+          <div class="field"><label>Case Number</label><input type="text" id="p1-caseNum" placeholder="e.g. CS11134725" oninput="clearP1Output()" /></div>
+          <div class="field field-full"><label>Customer Address</label><input type="text" id="p1-address" placeholder="e.g. 123 Main St NW, Atlanta GA" oninput="clearP1Output()" /></div>
+          <div class="field"><label>Customer Phone</label><input type="text" id="p1-phone" placeholder="e.g. (404) 555-0100" oninput="clearP1Output()" /></div>
+          <div class="field"><label>Customer Email</label><input type="text" id="p1-email" placeholder="e.g. customer@email.com" oninput="clearP1Output()" /></div>
+        </div>
+      </div>
+
+      <!-- Service area + issue -->
+      <div class="card-section">
+        <div class="section-title">Service Routing</div>
+        <div class="fields">
+          <div class="field"><label>Service Area / Team</label>
+            <select id="p1-serviceArea" onchange="updateRecipients()">
+              <option value="">Select service area...</option>
+              <option value="sa135">Solid Waste — Service Areas 3 & 5</option>
+              <option value="sa124">Solid Waste — Service Areas 1, 2 & 4</option>
+              <option value="specialops">Special Operations</option>
+              <option value="other_sw">Other Solid Waste (Backyard / Bulk / Carts / Multi-Family)</option>
+              <option value="command">Command Center</option>
+              <option value="ce">Customer Engagement</option>
+            </select>
+          </div>
+          <div class="field"><label>Sub-Category / Supervisor Group</label>
+            <select id="p1-subCat" onchange="updateRecipients()">
+              <option value="">Select sub-category...</option>
+            </select>
+          </div>
+          <div class="field field-full"><label>Issue / Complaint Description</label>
+            <textarea id="p1-issue" placeholder="Describe the customer's complaint, escalation, or premature closure issue..." oninput="clearP1Output()"></textarea>
+          </div>
+          <div class="field field-full"><label>Override Recipients (optional)</label>
+            <input type="text" id="p1-override" placeholder="Leave blank to auto-route, or type email addresses to override" oninput="clearP1Output()" />
+          </div>
+        </div>
+        <div class="recipients-box" id="recipientsBox" style="display:none;">
+          <div class="recipients-label">Auto-routed to</div>
+          <div class="recipients-list" id="recipientsList"></div>
+          <div class="supervisor-list" id="supervisorList"></div>
+        </div>
+      </div>
+
+      <!-- Generate -->
+      <div class="card-section">
+        <button class="gen-btn" id="p1-genBtn" onclick="generateP1()">Generate Emails + System Note</button>
+        <div class="toast" id="p1-toast"></div>
+      </div>
+
+      <!-- Output -->
+      <div class="card-section" id="p1-output" style="display:none;">
+        <div style="margin-bottom:1.5rem;">
+          <div class="output-label">
+            <span>📧 Email to Leadership</span>
+            <span class="copy-small" onclick="copyOutput('p1-emailOut','p1-toast','Email copied!')">Copy</span>
+          </div>
+          <div class="subject-line" id="p1-subjectOut"></div>
+          <div class="output-box" id="p1-emailOut"></div>
+        </div>
+        <div class="divider" style="margin-bottom:1.5rem;"></div>
+        <div>
+          <div class="output-label">
+            <span>📝 System Note (CRM)</span>
+            <span class="copy-small" onclick="copyOutput('p1-noteOut','p1-toast','Note copied!')">Copy</span>
+          </div>
+          <div class="output-box" id="p1-noteOut"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===== PART 2: MAILBOX & REQUESTS ===== -->
+  <div class="tab-panel" id="tab-part2">
+    <div class="card">
+
+      <!-- Box type toggle -->
+      <div class="card-section">
+        <div class="section-title">Mailbox Type</div>
+        <div class="segmented">
+          <button class="seg-btn active" id="bt-dpwcs" onclick="setBoxType('dpwcs')">DPWCS Box</button>
+          <button class="seg-btn" id="bt-dpwreq" onclick="setBoxType('dpwreq')">DPW Request Box</button>
+        </div>
+      </div>
+
+      <!-- Sender info -->
+      <div class="card-section">
+        <div class="section-title">Sender / Request Info</div>
+        <div class="fields">
+          <div class="field"><label>Sender Name</label><input type="text" id="p2-senderName" placeholder="e.g. Council Member Jones" oninput="clearP2Output()" /></div>
+          <div class="field"><label>Sender Email</label><input type="text" id="p2-senderEmail" placeholder="e.g. sender@atlantaga.gov" oninput="clearP2Output()" /></div>
+          <div class="field"><label>Customer / Constituent Name</label><input type="text" id="p2-custName" placeholder="e.g. John Doe" oninput="clearP2Output()" /></div>
+          <div class="field"><label>Customer Address</label><input type="text" id="p2-address" placeholder="e.g. 456 Oak Ave NW" oninput="clearP2Output()" /></div>
+          <div class="field"><label>Case Number</label><input type="text" id="p2-caseNum" placeholder="e.g. CS11134725" oninput="clearP2Output()" /></div>
+          <div class="field" id="p2-serviceAreaField">
+            <label>Service Area / Team</label>
+            <select id="p2-serviceArea" onchange="updateP2Recipients()">
+              <option value="">Select service area...</option>
+              <option value="sa135">Solid Waste — Service Areas 3 & 5</option>
+              <option value="sa124">Solid Waste — Service Areas 1, 2 & 4</option>
+              <option value="specialops">Special Operations</option>
+              <option value="other_sw">Other Solid Waste (Backyard / Bulk / Carts / Multi-Family)</option>
+              <option value="command">Command Center</option>
+              <option value="ce">Customer Engagement</option>
+            </select>
+          </div>
+          <div class="field field-full"><label>Issue / Request Description</label>
+            <textarea id="p2-issue" placeholder="Describe the issue or request from the email..." oninput="clearP2Output()"></textarea>
+          </div>
+        </div>
+        <div class="recipients-box" id="p2-recipientsBox" style="display:none;">
+          <div class="recipients-label">Routing to leadership</div>
+          <div class="recipients-list" id="p2-recipientsList"></div>
+        </div>
+      </div>
+
+      <!-- Generate -->
+      <div class="card-section">
+        <button class="gen-btn" id="p2-genBtn" onclick="generateP2()">Generate Reply + Outputs</button>
+        <div class="toast" id="p2-toast"></div>
+      </div>
+
+      <!-- Output -->
+      <div class="card-section" id="p2-output" style="display:none;">
+        <div style="margin-bottom:1.5rem;">
+          <div class="output-label">
+            <span>↩️ Reply to Sender</span>
+            <span class="copy-small" onclick="copyOutput('p2-replyOut','p2-toast','Reply copied!')">Copy</span>
+          </div>
+          <div class="output-box" id="p2-replyOut"></div>
+        </div>
+        <div id="p2-leadershipSection">
+          <div class="divider" style="margin-bottom:1.5rem;"></div>
+          <div style="margin-bottom:1.5rem;">
+            <div class="output-label">
+              <span>📧 Email to Leadership</span>
+              <span class="copy-small" onclick="copyOutput('p2-leaderOut','p2-toast','Leadership email copied!')">Copy</span>
+            </div>
+            <div class="subject-line" id="p2-subjectOut"></div>
+            <div class="output-box" id="p2-leaderOut"></div>
+          </div>
+        </div>
+        <div class="divider" style="margin-bottom:1.5rem;"></div>
+        <div>
+          <div class="output-label">
+            <span>📝 System Note (CRM)</span>
+            <span class="copy-small" onclick="copyOutput('p2-noteOut','p2-toast','Note copied!')">Copy</span>
+          </div>
+          <div class="output-box" id="p2-noteOut"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <p class="footer">DPW Customer Engagement Case Tool</p>
+</div>
+
+<script>
+// ── Routing data ──────────────────────────────────────────
+const ROUTING = {
+  sa135: {
+    leadership: 'Jason Wilcox, Ebony Jefferson',
+    subCats: {
+      'Service Area 3': { supervisors: 'Michael Swift' },
+      'Service Area 5': { supervisors: 'Kemond Evans, James Scott' },
+    }
+  },
+  sa124: {
+    leadership: 'Jason Wilcox, Taranda Hamilton, Lee Mayweather',
+    subCats: {
+      'Service Area 1': { supervisors: 'Michael Miles' },
+      'Service Area 2': { supervisors: 'Steven Ruffin, Arielle Evans' },
+      'Service Area 4': { supervisors: 'Anthony Smith, Ashly Render' },
+    }
+  },
+  specialops: {
+    leadership: 'Tracie Chambers, Dwayne Daniel',
+    subCats: {
+      'Right of Way': { supervisors: 'Kevin Kilpatrick, Steven McClendon, Carla Twine' },
+      'Illegal Dumping / Unsheltered Encampments': { supervisors: 'Jarvis Johnson' },
+      'Receptacles': { supervisors: 'Clectus Ross' },
+      'OCS / Dead Animals / Signs': { supervisors: 'Alicia Robinson' },
+      'Night Shift Sweepers / Receptacles': { supervisors: 'Terry Muckle, Nicole Fryson' },
+      'Sweepers': { supervisors: 'Shantell Turner' },
+    }
+  },
+  other_sw: {
+    leadership: 'Jason Wilcox, Gloria Tolbert',
+    subCats: {
+      'Backyard Service': { supervisors: 'Kevin James, Willie Grayer' },
+      'Bulk Collection': { supervisors: 'Alimany Conteh' },
+      'Carts / Multi-Family Dumpster': { supervisors: 'Angelina Benefield' },
+    }
+  },
+  command: {
+    leadership: 'Rasheda McGhee (Director), Amaria McMiller (Service Delivery Manager)',
+    subCats: { 'Command Center': { supervisors: '' } }
+  },
+  ce: {
+    leadership: 'Steven Vandyke (Management Analyst II)',
+    subCats: { 'Customer Engagement': { supervisors: '' } }
+  }
+};
+
+let caseType = 'COMPLAINT';
+let boxType = 'dpwcs';
+
+// ── Tab switching ──────────────────────────────────────────
+function switchTab(tab) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ── Case type ──────────────────────────────────────────────
+function setCaseType(type) {
+  caseType = type;
+  ['complaint','escalation','premature'].forEach(t => document.getElementById('ct-' + t).classList.remove('active'));
+  const map = {'COMPLAINT':'complaint','ESCALATION':'escalation','PREMATURE CLOSURE':'premature'};
+  document.getElementById('ct-' + map[type]).classList.add('active');
+  clearP1Output();
+}
+
+// ── Box type ───────────────────────────────────────────────
+function setBoxType(type) {
+  boxType = type;
+  document.getElementById('bt-dpwcs').classList.toggle('active', type === 'dpwcs');
+  document.getElementById('bt-dpwreq').classList.toggle('active', type === 'dpwreq');
+  const show = type === 'dpwreq';
+  document.getElementById('p2-serviceAreaField').style.display = show ? '' : 'none';
+  document.getElementById('p2-recipientsBox').style.display = 'none';
+  document.getElementById('p2-leadershipSection').style.display = show ? '' : 'none';
+  clearP2Output();
+}
+
+// ── Sub-cat dropdown population ────────────────────────────
+function populateSubCats(selectId, areaKey) {
+  const sel = document.getElementById(selectId);
+  sel.innerHTML = '<option value="">Select sub-category...</option>';
+  if (!areaKey || !ROUTING[areaKey]) return;
+  Object.keys(ROUTING[areaKey].subCats).forEach(sc => {
+    const opt = document.createElement('option');
+    opt.value = sc; opt.textContent = sc;
+    sel.appendChild(opt);
+  });
+}
+
+function updateRecipients() {
+  const area = document.getElementById('p1-serviceArea').value;
+  populateSubCats('p1-subCat', area);
+  showRecipients();
+  clearP1Output();
+}
+
+function showRecipients() {
+  const area = document.getElementById('p1-serviceArea').value;
+  const subCat = document.getElementById('p1-subCat').value;
+  const box = document.getElementById('recipientsBox');
+  if (!area) { box.style.display = 'none'; return; }
+  const r = ROUTING[area];
+  document.getElementById('recipientsList').textContent = r.leadership;
+  const supText = subCat && r.subCats[subCat]?.supervisors ? 'Supervisors: ' + r.subCats[subCat].supervisors : '';
+  document.getElementById('supervisorList').textContent = supText;
+  box.style.display = 'block';
+}
+
+function updateP2Recipients() {
+  const area = document.getElementById('p2-serviceArea').value;
+  const box = document.getElementById('p2-recipientsBox');
+  if (!area) { box.style.display = 'none'; return; }
+  document.getElementById('p2-recipientsList').textContent = ROUTING[area].leadership;
+  box.style.display = 'block';
+}
+
+// ── Helpers ────────────────────────────────────────────────
+function getRecipientString(areaKey, subCat) {
+  if (!areaKey || !ROUTING[areaKey]) return '';
+  const r = ROUTING[areaKey];
+  let str = r.leadership;
+  if (subCat && r.subCats[subCat]?.supervisors) str += ', ' + r.subCats[subCat].supervisors;
+  return str;
+}
+
+function clearP1Output() { document.getElementById('p1-output').style.display = 'none'; }
+function clearP2Output() { document.getElementById('p2-output').style.display = 'none'; }
+
+function copyOutput(id, toastId, msg) {
+  const text = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const toast = document.getElementById(toastId);
+    toast.textContent = '✓ ' + msg; toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 2500);
+  });
+}
+
+// ── PART 1 Generate ────────────────────────────────────────
+async function generateP1() {
+  const custName = document.getElementById('p1-custName').value.trim();
+  const caseNum = document.getElementById('p1-caseNum').value.trim();
+  const address = document.getElementById('p1-address').value.trim();
+  const phone = document.getElementById('p1-phone').value.trim();
+  const email = document.getElementById('p1-email').value.trim();
+  const area = document.getElementById('p1-serviceArea').value;
+  const subCat = document.getElementById('p1-subCat').value;
+  const issue = document.getElementById('p1-issue').value.trim();
+  const override = document.getElementById('p1-override').value.trim();
+
+  if (!issue) { alert('Please enter the issue description.'); return; }
+
+  const btn = document.getElementById('p1-genBtn');
+  btn.innerHTML = '<span class="spinner"></span>Generating...';
+  btn.classList.add('loading'); btn.disabled = true;
+
+  const recipients = override || getRecipientString(area, subCat) || '[Leadership]';
+  const issueShort = issue.split(' ').slice(0,4).join(' ').toUpperCase();
+  const subject = `${caseType} - ${issueShort}${address ? ' - ' + address.toUpperCase() : ''}`;
+
+  const prompt = `You are a Customer Engagement Representative for the City of Atlanta Department of Public Works. Generate TWO outputs:
+
+1. A professional email to DPW leadership about a ${caseType.toLowerCase()} case.
+2. A brief CRM system note (1-2 sentences max).
+
+Case Details:
+- Type: ${caseType}
+- Customer: ${custName || 'Customer'}
+- Address: ${address || 'N/A'}
+- Phone: ${phone || 'N/A'}
+- Email: ${email || 'N/A'}
+- Case Number: ${caseNum || 'N/A'}
+- Issue: ${issue}
+- Service Area/Team: ${subCat || area || 'N/A'}
+- Recipients: ${recipients}
+
+FORMAT YOUR RESPONSE EXACTLY LIKE THIS (no extra text before or after):
+EMAIL_START
+[professional email body - greeting to leadership, explain the ${caseType.toLowerCase()}, customer details, request for corrective action, professional closing]
+EMAIL_END
+NOTE_START
+[1-2 sentence CRM note such as: Called customer re: [issue]. Escalated to SW Leadership. Case ${caseNum || 'created'}.]
+NOTE_END`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
+    });
+    const data = await resp.json();
+    const text = data.content.map(b => b.text || '').join('');
+    const emailMatch = text.match(/EMAIL_START\n([\s\S]*?)EMAIL_END/);
+    const noteMatch = text.match(/NOTE_START\n([\s\S]*?)NOTE_END/);
+
+    document.getElementById('p1-subjectOut').textContent = 'Subject: ' + subject;
+    document.getElementById('p1-emailOut').textContent = emailMatch ? emailMatch[1].trim() : text;
+    document.getElementById('p1-noteOut').textContent = noteMatch ? noteMatch[1].trim() : 'Case actioned and escalated to leadership.';
+    document.getElementById('p1-output').style.display = 'block';
+    document.getElementById('p1-output').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch(e) {
+    alert('Could not generate. Please check your connection.');
+  } finally {
+    btn.innerHTML = 'Generate Emails + System Note';
+    btn.classList.remove('loading'); btn.disabled = false;
+  }
+}
+
+// ── PART 2 Generate ────────────────────────────────────────
+async function generateP2() {
+  const senderName = document.getElementById('p2-senderName').value.trim();
+  const senderEmail = document.getElementById('p2-senderEmail').value.trim();
+  const custName = document.getElementById('p2-custName').value.trim();
+  const address = document.getElementById('p2-address').value.trim();
+  const caseNum = document.getElementById('p2-caseNum').value.trim();
+  const issue = document.getElementById('p2-issue').value.trim();
+  const area = boxType === 'dpwreq' ? document.getElementById('p2-serviceArea').value : '';
+
+  if (!issue) { alert('Please enter the issue or request description.'); return; }
+
+  const btn = document.getElementById('p2-genBtn');
+  btn.innerHTML = '<span class="spinner"></span>Generating...';
+  btn.classList.add('loading'); btn.disabled = true;
+
+  const isDPWReq = boxType === 'dpwreq';
+  const recipients = area ? ROUTING[area]?.leadership : '';
+
+  const prompt = `You are a Customer Engagement Representative for the City of Atlanta Department of Public Works. Generate outputs for a ${isDPWReq ? 'DPW Request Box' : 'DPWCS Box'} email.
+
+Request Details:
+- From: ${senderName || 'Sender'}${senderEmail ? ' <' + senderEmail + '>' : ''}
+- Constituent/Customer: ${custName || 'N/A'}
+- Address: ${address || 'N/A'}
+- Case Number: ${caseNum || 'N/A'}
+- Issue/Request: ${issue}
+${isDPWReq ? '- Routing to: ' + (recipients || 'Leadership') : ''}
+
+Generate these outputs EXACTLY in this format:
+
+REPLY_START
+[Professional reply to sender acknowledging receipt${isDPWReq ? ', confirming the case number and that it has been forwarded to the appropriate team for resolution' : ''}]
+REPLY_END
+${isDPWReq ? `LEADER_START
+[Professional email to leadership forwarding the council/constituent request, explaining the issue and requesting action]
+LEADER_END` : ''}
+NOTE_START
+[1-2 sentence CRM note: e.g. Received request from ${senderName || 'sender'} re: ${issue.split(' ').slice(0,5).join(' ')}. ${isDPWReq ? 'Forwarded to leadership.' : 'Replied to sender.'}]
+NOTE_END`;
+
+  try {
+    const resp = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 1000, messages: [{ role: 'user', content: prompt }] })
+    });
+    const data = await resp.json();
+    const text = data.content.map(b => b.text || '').join('');
+    const replyMatch = text.match(/REPLY_START\n([\s\S]*?)REPLY_END/);
+    const leaderMatch = text.match(/LEADER_START\n([\s\S]*?)LEADER_END/);
+    const noteMatch = text.match(/NOTE_START\n([\s\S]*?)NOTE_END/);
+
+    document.getElementById('p2-replyOut').textContent = replyMatch ? replyMatch[1].trim() : text;
+
+    if (isDPWReq) {
+      const issueShort = issue.split(' ').slice(0,4).join(' ').toUpperCase();
+      document.getElementById('p2-subjectOut').textContent = `Subject: COUNCIL REQUEST - ${issueShort}${address ? ' - ' + address.toUpperCase() : ''}`;
+      document.getElementById('p2-leaderOut').textContent = leaderMatch ? leaderMatch[1].trim() : '';
+      document.getElementById('p2-leadershipSection').style.display = '';
+    } else {
+      document.getElementById('p2-leadershipSection').style.display = 'none';
+    }
+
+    document.getElementById('p2-noteOut').textContent = noteMatch ? noteMatch[1].trim() : 'Request received and actioned.';
+    document.getElementById('p2-output').style.display = 'block';
+    document.getElementById('p2-output').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch(e) {
+    alert('Could not generate. Please check your connection.');
+  } finally {
+    btn.innerHTML = 'Generate Reply + Outputs';
+    btn.classList.remove('loading'); btn.disabled = false;
+  }
+}
+
+// init
+setBoxType('dpwcs');
+</script>
+</body>
+</html>
